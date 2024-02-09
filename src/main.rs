@@ -48,7 +48,6 @@ fn run_prompt() -> io::Result<()> {
     loop {
         print!("> ");
         let _ = io::stdout().flush();
-        buffer.clear();
 
         stdin.read_line(&mut buffer)?;
 
@@ -59,6 +58,13 @@ fn run_prompt() -> io::Result<()> {
         if buffer.trim() == "exit" {
             break;
         }
+
+        let mut scanner = Scanner::new(buffer.clone());
+        let tokens = scanner.scanning();
+
+        println!("{:?}", tokens);
+
+        buffer.clear();
     }
 
     Ok(())

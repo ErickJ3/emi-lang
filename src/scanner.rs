@@ -13,6 +13,7 @@ pub enum Token {
     FloatLiteral(f64),
 }
 
+#[derive(Debug)]
 pub struct Scanner {
     source: String,
 }
