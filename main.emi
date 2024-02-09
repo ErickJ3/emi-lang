@@ -1,0 +1,5 @@
+fun hello():
+    print "hell world"
+end
+
+let numbers = 10
