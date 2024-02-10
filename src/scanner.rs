@@ -16,7 +16,7 @@ pub enum Tokens {
     FLOATLITERAL(f64),
     BANG,
     BANGEQUAL,
-    EQUAL,
+    ASSIGNMENT,
     EQUALEQUAL,
     GREATER,
     GREATEREQUAL,
@@ -140,10 +140,10 @@ impl<'a> Scanner<'a> {
                             tokens.push(Tokens::EQUALEQUAL);
                             chars.next();
                         } else {
-                            tokens.push(Tokens::EQUAL);
+                            tokens.push(Tokens::ASSIGNMENT);
                         }
                     } else {
-                        tokens.push(Tokens::EQUAL);
+                        tokens.push(Tokens::ASSIGNMENT);
                     }
                 }
                 '!' => {
@@ -186,7 +186,7 @@ impl<'a> Scanner<'a> {
                     }
                 }
                 '=' => {
-                    tokens.push(Tokens::EQUAL);
+                    tokens.push(Tokens::ASSIGNMENT);
                     chars.next();
                 }
                 ':' => {

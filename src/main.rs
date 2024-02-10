@@ -1,7 +1,4 @@
-mod interpreter;
 mod scanner;
-
-use interpreter::Interpreter;
 
 use crate::parser::Parser;
 use crate::scanner::Scanner;
@@ -31,7 +28,7 @@ fn run_file(file_path: &str) -> io::Result<()> {
     let mut str_content = String::new();
 
     file.read_to_string(&mut str_content)?;
-    
+
     println!("code: {:?}", &str_content);
 
     let mut scanner = Scanner::new(&str_content);
@@ -40,11 +37,10 @@ fn run_file(file_path: &str) -> io::Result<()> {
     println!("tokens: {:#?}", tokens);
 
     let mut parser = Parser::new(tokens);
+
     let ast = parser.parse();
 
     println!("parsing: {:#?}", ast);
-
-    Interpreter::interpret(ast);
 
     Ok(())
 }

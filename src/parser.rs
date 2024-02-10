@@ -5,11 +5,9 @@ pub enum Expression {
     LITERAL(Tokens),
     BINARY(Box<Expression>, Tokens, Box<Expression>),
     UNARY(Tokens, Box<Expression>),
-    VARIABLE(String),
-    CALL(String),
-    BLOCK(Vec<Expression>),
     COMPARISON(Box<Expression>, Tokens, Box<Expression>),
     LOGICAL(Box<Expression>, Tokens, Box<Expression>),
+    ASSIGNMENT(String, Box<Expression>),
 }
 
 pub struct Parser {
@@ -25,26 +23,108 @@ impl Parser {
     pub fn parse(&mut self) -> Vec<Expression> {
         let mut expressions = Vec::new();
         while !self.is_at_end() {
-            if let Some(expr) = self.expression() {
+            if let Some(stmt) = self.statement() {
+                expressions.push(stmt);
+            } else if let Some(expr) = self.expression() {
                 expressions.push(expr);
             }
-            self.advance();
+            while !self.is_at_end() && !self.is_start_of_declaration() {
+                self.advance();
+            }
         }
         expressions
+    }
+
+    fn is_start_of_declaration(&self) -> bool {
+        matches!(
+            self.peek(),
+            Some(Tokens::LET) | Some(Tokens::FUN) | Some(Tokens::IDENTIFIER(_))
+        )
+    }
+
+    fn primary(&mut self) -> Option<Expression> {
+        if let Some(left) = match &self.tokens.get(self.current)? {
+            Tokens::INTLITERAL(_)
+            | Tokens::FLOATLITERAL(_)
+            | Tokens::STRINGLITERAL(_)
+            | Tokens::TRUE
+            | Tokens::FALSE => {
+                let token = self.tokens[self.current].clone();
+                self.current += 1;
+                Some(Expression::LITERAL(token))
+            }
+            Tokens::GREATER
+            | Tokens::GREATEREQUAL
+            | Tokens::LESS
+            | Tokens::LESSEQUAL
+            | Tokens::EQUALEQUAL
+            | Tokens::BANGEQUAL => {
+                let operator = self.tokens[self.current].clone();
+                self.current += 1;
+                let right = self.primary()?;
+                Some(Expression::BINARY(
+                    Box::new(Expression::LITERAL(operator)),
+                    Tokens::BANGEQUAL,
+                    Box::new(right),
+                ))
+            }
+            _ => None,
+        } {
+            if self.current < self.tokens.len() {
+                match &self.tokens[self.current] {
+                    Tokens::GREATER
+                    | Tokens::GREATEREQUAL
+                    | Tokens::LESS
+                    | Tokens::LESSEQUAL
+                    | Tokens::EQUALEQUAL
+                    | Tokens::BANGEQUAL => {
+                        let operator = self.tokens[self.current].clone();
+                        self.current += 1;
+                        let right = self.primary()?;
+                        Some(Expression::BINARY(
+                            Box::new(left),
+                            operator,
+                            Box::new(right),
+                        ))
+                    }
+                    _ => Some(left),
+                }
+            } else {
+                Some(left)
+            }
+        } else {
+            None
+        }
     }
 
     fn is_at_end(&self) -> bool {
         self.current >= self.tokens.len()
     }
 
-    fn advance(&mut self) -> Option<&Tokens> {
+    fn advance(&mut self) {
         if !self.is_at_end() {
-            let token = &self.tokens[self.current];
             self.current += 1;
-            Some(token)
+        }
+    }
+
+    fn statement(&mut self) -> Option<Expression> {
+        if self.match_token(Tokens::LET) {
+            self.let_declaration()
         } else {
             None
         }
+    }
+
+    fn let_declaration(&mut self) -> Option<Expression> {
+        if let Some(Tokens::IDENTIFIER(identifier)) = self.peek().cloned() {
+            self.advance();
+            if self.match_token(Tokens::ASSIGNMENT) {
+                if let Some(expr) = self.expression() {
+                    return Some(Expression::ASSIGNMENT(identifier, Box::new(expr)));
+                }
+            }
+        }
+        None
     }
 
     fn match_token(&mut self, expected: Tokens) -> bool {
@@ -132,46 +212,17 @@ impl Parser {
         }
     }
 
-    fn primary(&mut self) -> Option<Expression> {
-        let left = match &self.tokens.get(self.current)? {
-            Tokens::INTLITERAL(_) | Tokens::FLOATLITERAL(_) => {
-                let token = self.tokens[self.current].clone();
-                self.current += 1;
-                Some(Expression::LITERAL(token))
-            }
-            _ => None,
-        };
-
-        if self.current < self.tokens.len() {
-            match &self.tokens[self.current] {
-                Tokens::GREATER
-                | Tokens::GREATEREQUAL
-                | Tokens::LESS
-                | Tokens::LESSEQUAL
-                | Tokens::EQUALEQUAL
-                | Tokens::BANGEQUAL => {
-                    let operator = self.tokens[self.current].clone();
-                    self.current += 1;
-                    let right = self.primary()?;
-                    match left {
-                        Some(left_expr) => Some(Expression::BINARY(
-                            Box::new(left_expr),
-                            operator,
-                            Box::new(right),
-                        )),
-                        None => None,
-                    }
-                }
-                _ => left,
-            }
-        } else {
-            left
-        }
-    }
-
     fn previous(&self) -> Option<&Tokens> {
         if self.current > 0 {
             Some(&self.tokens[self.current - 1])
+        } else {
+            None
+        }
+    }
+
+    fn peek(&self) -> Option<&Tokens> {
+        if !self.is_at_end() {
+            Some(&self.tokens[self.current])
         } else {
             None
         }
