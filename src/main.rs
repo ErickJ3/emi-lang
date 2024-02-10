@@ -1,4 +1,7 @@
+mod interpreter;
 mod scanner;
+
+use interpreter::Interpreter;
 
 use crate::parser::Parser;
 use crate::scanner::Scanner;
@@ -28,15 +31,20 @@ fn run_file(file_path: &str) -> io::Result<()> {
     let mut str_content = String::new();
 
     file.read_to_string(&mut str_content)?;
+    
+    println!("code: {:?}", &str_content);
 
-    let mut scanner = Scanner::new(str_content);
+    let mut scanner = Scanner::new(&str_content);
     let tokens = scanner.scanning();
 
-    print!("{:#?}", tokens);
+    println!("tokens: {:#?}", tokens);
 
     let mut parser = Parser::new(tokens);
     let ast = parser.parse();
-    println!("{:#?}", ast);
+
+    println!("parsing: {:#?}", ast);
+
+    Interpreter::interpret(ast);
 
     Ok(())
 }
@@ -58,11 +66,6 @@ fn run_prompt() -> io::Result<()> {
         if buffer.trim() == "exit" {
             break;
         }
-
-        let mut scanner = Scanner::new(buffer.clone());
-        let tokens = scanner.scanning();
-
-        println!("{:?}", tokens);
 
         buffer.clear();
     }

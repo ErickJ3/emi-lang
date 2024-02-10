@@ -1,1 +1,1 @@
-scanning -> tokens -> parsing -> syntax_tree -> analysis
+scanning -> tokens -> parsing -> syntax_tree -> analysis -> interpreter
