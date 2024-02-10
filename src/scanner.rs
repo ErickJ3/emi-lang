@@ -3,6 +3,7 @@ pub enum Tokens {
     FUN,
     IDENTIFIER(String),
     COLON,
+    DOT,
     LEFTPAREN,
     RIGHTPAREN,
     STRINGLITERAL(String),
@@ -24,7 +25,6 @@ pub enum Tokens {
     MINUS,
     PLUS,
     SLASH,
-    SEMICOLON,
     STAR,
     AND,
     ELSE,
@@ -128,6 +128,10 @@ impl<'a> Scanner<'a> {
                     }
 
                     buffer.clear();
+                }
+                '.' => {
+                    tokens.push(Tokens::DOT);
+                    chars.next();
                 }
                 '=' => {
                     chars.next();
