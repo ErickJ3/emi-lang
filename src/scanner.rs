@@ -185,10 +185,6 @@ impl<'a> Scanner<'a> {
                         tokens.push(Tokens::LESS);
                     }
                 }
-                '=' => {
-                    tokens.push(Tokens::ASSIGNMENT);
-                    chars.next();
-                }
                 ':' => {
                     tokens.push(Tokens::COLON);
                     chars.next();
