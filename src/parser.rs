@@ -94,7 +94,7 @@ impl<'a> Parser<'a> {
     }
 
     fn error(&self, message: &str) {
-        eprintln!("Error: {}", message);
+        eprintln!("error: {}", message);
     }
 
     fn parse_primary(&mut self) -> Option<Expr> {

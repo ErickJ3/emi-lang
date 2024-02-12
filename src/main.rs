@@ -1,11 +1,15 @@
-mod scanner;
-mod parser;
-
-use crate::parser::Parser;
-use crate::scanner::Scanner;
 use std::env;
+use std::f32::consts::E;
 use std::fs::File;
 use std::io::{self, Read, Write};
+
+mod interpreter;
+mod parser;
+mod scanner;
+
+use crate::interpreter::Interpreter;
+use crate::parser::Parser;
+use crate::scanner::Scanner;
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -36,10 +40,16 @@ fn run_file(file_path: &str) -> io::Result<()> {
     println!("tokens: {:#?}", tokens);
 
     let mut parser = Parser::new(&tokens);
-    
+
     if let Some(expr) = parser.parse() {
         println!("{:#?}", expr);
+    
+        let mut interpreter = Interpreter::new();
+        let eval = interpreter.evaluate(expr);
+
+        println!("{:?}", eval);
     }
+    
 
     Ok(())
 }
