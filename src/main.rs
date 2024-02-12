@@ -1,12 +1,11 @@
 mod scanner;
+mod parser;
 
 use crate::parser::Parser;
 use crate::scanner::Scanner;
 use std::env;
 use std::fs::File;
 use std::io::{self, Read, Write};
-
-mod parser;
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = env::args().collect();
@@ -36,11 +35,11 @@ fn run_file(file_path: &str) -> io::Result<()> {
 
     println!("tokens: {:#?}", tokens);
 
-    let mut parser = Parser::new(tokens);
-
-    let ast = parser.parse();
-
-    println!("parsing: {:#?}", ast);
+    let mut parser = Parser::new(&tokens);
+    
+    if let Some(expr) = parser.parse() {
+        println!("{:#?}", expr);
+    }
 
     Ok(())
 }

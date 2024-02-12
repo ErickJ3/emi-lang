@@ -3,6 +3,8 @@ pub enum Tokens {
     FUN,
     IDENTIFIER(String),
     COLON,
+    NEWLINE,
+    COMMA,
     DOT,
     LEFTPAREN,
     RIGHTPAREN,
@@ -75,6 +77,7 @@ impl<'a> Scanner<'a> {
                         tokens.push(Tokens::SLASH);
                     }
                 }
+
                 'a'..='z' | 'A'..='Z' | '_' => {
                     while let Some(&next_ch) = chars.peek() {
                         if next_ch.is_ascii_alphabetic() || next_ch == '_' {
@@ -128,6 +131,14 @@ impl<'a> Scanner<'a> {
                     }
 
                     buffer.clear();
+                }
+                '\n' => {
+                    tokens.push(Tokens::NEWLINE);
+                    chars.next();
+                }
+                ',' => {
+                    tokens.push(Tokens::COMMA);
+                    chars.next();
                 }
                 '.' => {
                     tokens.push(Tokens::DOT);
