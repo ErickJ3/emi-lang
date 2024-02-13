@@ -3,7 +3,6 @@ pub enum Tokens {
     FUN,
     IDENTIFIER(String),
     COLON,
-    NEWLINE,
     COMMA,
     DOT,
     LEFTPAREN,
@@ -131,10 +130,6 @@ impl<'a> Scanner<'a> {
                     }
 
                     buffer.clear();
-                }
-                '\n' => {
-                    tokens.push(Tokens::NEWLINE);
-                    chars.next();
                 }
                 ',' => {
                     tokens.push(Tokens::COMMA);

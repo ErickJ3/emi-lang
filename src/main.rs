@@ -1,5 +1,4 @@
 use std::env;
-use std::f32::consts::E;
 use std::fs::File;
 use std::io::{self, Read, Write};
 
@@ -41,16 +40,16 @@ fn run_file(file_path: &str) -> io::Result<()> {
 
     let mut parser = Parser::new(&tokens);
 
-    if let Some(expr) = parser.parse() {
-        println!("{:#?}", expr);
-    
-        let mut interpreter = Interpreter::new();
-        let eval = interpreter.evaluate(expr);
+    let mut interpreter = Interpreter::new();
 
-        println!("{:?}", eval);
-    }
-    
+    let expr = parser.parse().unwrap();
 
+    println!("{:#?}", expr);
+
+
+    let eval = interpreter.evaluate(expr);
+
+    println!("{:?}", eval);
     Ok(())
 }
 

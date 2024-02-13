@@ -17,11 +17,18 @@ impl Interpreter {
             Expr::Float(value) => Ok(Expr::Float(value)),
             Expr::StringLiteral(value) => Ok(Expr::StringLiteral(value)),
             Expr::Variable(name) => {
-                if let Some(value) = self.variables.get(&name) {
-                    Ok(value.clone())
+                if let Some(function_expr) = self.get_function_value(&name) {
+                    Ok(function_expr.clone())
                 } else {
-                    Err(format!("variable '{}' not found", name))
+                    Err(format!("variable '{}' not declared", name))
                 }
+            }
+            Expr::Block(expressions) => {
+                let mut results = Vec::new();
+                for expr in expressions {
+                    results.push(self.interpret(expr)?);
+                }
+                Ok(Expr::Block(results))
             }
             Expr::Grouping(expr) => self.interpret(*expr),
             Expr::UnaryOp { operator, right } => {
@@ -31,6 +38,26 @@ impl Interpreter {
                     Tokens::BANG => self.apply_bang(right_value),
                     _ => Err("invalid unary operator".to_string()),
                 }
+            }
+            Expr::LetStmt { identifier, value } => {
+                let identifier_fun = identifier.clone();
+
+                if self.variables.contains_key(&identifier_fun) {
+                    return Err(format!("variable '{}' has already been declared", identifier_fun));
+                }
+
+                let value = self.interpret(*value)?;
+                self.variables.insert(identifier.clone(), value.clone());
+                Ok(Expr::Nil)
+            }
+            Expr::Function {
+                name,
+                parameters,
+                body,
+            } => {
+                println!("{}, {:?}, {:?}", name, parameters, body);
+
+                Ok(Expr::Nil)
             }
             Expr::BinaryOp {
                 left,
@@ -63,6 +90,10 @@ impl Interpreter {
 
     pub fn evaluate(&mut self, expr: Expr) -> Result<Expr, String> {
         self.interpret(expr)
+    }
+
+    pub fn get_function_value(&self, name: &str) -> Option<&Expr> {
+        self.variables.get(name)
     }
 
     fn apply_unary_minus(&self, expr: Expr) -> Result<Expr, String> {

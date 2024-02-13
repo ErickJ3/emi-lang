@@ -47,6 +47,7 @@ pub enum Expr {
         arguments: Vec<Expr>,
     },
     ReturnStmt(Option<Box<Expr>>),
+    Nil,
 }
 
 pub struct Parser<'a> {
@@ -78,10 +79,6 @@ impl<'a> Parser<'a> {
     }
 
     fn consume(&mut self, token_type: Tokens) -> Option<&Tokens> {
-        while let Some(&Tokens::NEWLINE) = self.peek() {
-            self.advance();
-        }
-
         if let Some(token) = self.peek() {
             if *token == token_type {
                 self.advance()
@@ -122,83 +119,115 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_unary(&mut self) -> Option<Expr> {
-        let primary_expr = self.parse_primary()?;
-
-        if let Some(operator) = self.consume(Tokens::BANG) {
-            let right = Box::new(primary_expr);
-            Some(Expr::UnaryOp {
-                operator: operator.clone(),
-                right,
-            })
-        } else if let Some(operator) = self.consume(Tokens::MINUS) {
-            let right = Box::new(primary_expr);
-            Some(Expr::UnaryOp {
-                operator: operator.clone(),
-                right,
-            })
-        } else {
-            Some(primary_expr)
-        }
-    }
-
-    fn parse_binary(&mut self, higher_precedence: fn(&Tokens) -> bool) -> Option<Expr> {
-        let mut expr = self.parse_unary()?;
-
-        while let Some(token) = self.peek() {
-            if higher_precedence(token) {
-                let operator = self.advance().unwrap().clone();
-                let right = self.parse_unary()?;
-                expr = self.finish_binary(expr, operator, right);
-            } else {
-                break;
-            }
-        }
-
-        Some(expr)
-    }
-
     fn parse_print_statement(&mut self) -> Option<Expr> {
         if self.consume(Tokens::PRINT).is_none() {
             self.error("expected 'print' keyword.");
             return None;
         }
 
-        let expr = self.parse_expression()?;
+        let value = self.parse_expression()?;
 
-        Some(Expr::PrintStmt(Box::new(expr)))
+        Some(Expr::PrintStmt(Box::new(value)))
     }
 
-    fn finish_binary(&self, left: Expr, operator: Tokens, right: Expr) -> Expr {
-        Expr::BinaryOp {
-            left: Box::new(left),
-            operator,
-            right: Box::new(right),
+    fn parse_let_statement(&mut self) -> Option<Expr> {
+        self.advance();
+
+        let identifier = match self.peek() {
+            Some(&Tokens::IDENTIFIER(ref name)) => name.clone(),
+            _ => {
+                self.error("expected identifier after 'let' keyword.");
+                return None;
+            }
+        };
+
+        self.advance();
+
+        if self.consume(Tokens::ASSIGNMENT).is_none() {
+            self.error("expected '=' after identifier.");
+            return None;
         }
+
+        if self.consume(Tokens::LET).is_some() {
+            self.error("declaration is invalid");
+            return None;
+        }
+
+        let value = self.parse_expression()?;
+
+        Some(Expr::LetStmt {
+            identifier,
+            value: Box::new(value),
+        })
+    }
+
+    fn parse_binary_expression(&mut self) -> Option<Expr> {
+        let mut left = self.parse_primary()?;
+
+        while let Some(operator) = self.peek().cloned().filter(|token| {
+            matches!(
+                token,
+                Tokens::PLUS
+                    | Tokens::MINUS
+                    | Tokens::STAR
+                    | Tokens::SLASH
+                    | Tokens::GREATER
+                    | Tokens::GREATEREQUAL
+                    | Tokens::LESS
+                    | Tokens::LESSEQUAL
+                    | Tokens::EQUALEQUAL
+                    | Tokens::BANGEQUAL
+            )
+        }) {
+            self.advance();
+
+            let right = self.parse_primary()?;
+
+            left = Expr::BinaryOp {
+                left: Box::new(left),
+                operator,
+                right: Box::new(right),
+            };
+        }
+
+        Some(left)
     }
 
     fn parse_expression(&mut self) -> Option<Expr> {
-        match self.peek() {
-            Some(&Tokens::PRINT) => self.parse_print_statement(),
-            _ => self.parse_binary(|token| {
-                matches!(
-                    token,
-                    Tokens::PLUS
-                        | Tokens::MINUS
-                        | Tokens::STAR
-                        | Tokens::SLASH
-                        | Tokens::GREATER
-                        | Tokens::GREATEREQUAL
-                        | Tokens::LESS
-                        | Tokens::LESSEQUAL
-                        | Tokens::EQUALEQUAL
-                        | Tokens::BANGEQUAL
-                )
-            })
+        if let Some(&Tokens::EOF) = self.peek() {
+            return None;
         }
+
+        if let Some(&Tokens::PRINT) = self.peek() {
+            return self.parse_print_statement();
+        }
+
+        if let Some(&Tokens::LET) = self.peek() {
+            return self.parse_let_statement();
+        }
+
+        if let Some(&Tokens::FUN) = self.peek() {
+            println!()
+        }
+
+        self.parse_binary_expression()
     }
 
     pub fn parse(&mut self) -> Option<Expr> {
-        self.parse_expression()
+        let mut expressions = Vec::new();
+
+        while let Some(expr) = self.parse_expression() {
+            expressions.push(expr);
+
+            if self.is_at_end() {
+                break;
+            }
+        }
+
+        if expressions.is_empty() {
+            Some(Expr::Nil)
+        } else {
+            Some(Expr::Block(expressions))
+        }
     }
 }
