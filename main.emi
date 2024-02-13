@@ -13,3 +13,9 @@ main(10, 20)
 name = "hello_world"
 
 print name
+
+if "erick" == name:
+    print "is equal"
+else:
+    print "not equal"
+end

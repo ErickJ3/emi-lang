@@ -148,11 +148,46 @@ impl Interpreter {
                     Tokens::SLASH => {
                         self.apply_binary_operation(&left_value, &right_value, &Tokens::SLASH)
                     }
-                    _ => Err("unsupported operator".to_string()),
+                    Tokens::BANG => self.apply_bang(left_value),
+                    Tokens::BANGEQUAL => {
+                        self.apply_binary_operation(&left_value, &right_value, &Tokens::BANGEQUAL)
+                    }
+                    Tokens::EQUALEQUAL => {
+                        self.apply_binary_operation(&left_value, &right_value, &Tokens::EQUALEQUAL)
+                    }
+                    Tokens::GREATER => {
+                        self.apply_binary_operation(&left_value, &right_value, &Tokens::GREATER)
+                    }
+                    Tokens::GREATEREQUAL => self.apply_binary_operation(
+                        &left_value,
+                        &right_value,
+                        &Tokens::GREATEREQUAL,
+                    ),
+                    Tokens::LESS => {
+                        self.apply_binary_operation(&left_value, &right_value, &Tokens::LESS)
+                    }
+                    Tokens::LESSEQUAL => {
+                        self.apply_binary_operation(&left_value, &right_value, &Tokens::LESSEQUAL)
+                    }
+                    _ => Err(format!("unsupported operator {:?}", operator)),
+                }
+            }
+            Expr::IfStmt {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                let condition_value = self.evaluate(*condition)?;
+                if self.is_truthy(condition_value) {
+                    self.interpret(*then_branch)
+                } else if let Some(else_expr) = else_branch {
+                    self.interpret(*else_expr)
+                } else {
+                    Ok(Expr::Nil)
                 }
             }
             Expr::PrintStmt(expr) => self.interpret(*expr),
-            _ => Err("unsupported expression".to_string()),
+            _ => Err(format!("unsupported expression: {}", expr)),
         }
     }
 
@@ -186,79 +221,116 @@ impl Interpreter {
         right: &Expr,
         operator: &Tokens,
     ) -> Result<Expr, String> {
-        let left_value = self.interpret(left.clone())?;
-        let right_value = self.interpret(right.clone())?;
-
-        match (left_value, right_value, operator) {
-            (Expr::Number(left_num), Expr::Number(right_num), Tokens::PLUS) => {
-                Ok(Expr::Number(left_num + right_num))
-            }
-            (Expr::Number(left_num), Expr::Float(right_num), Tokens::PLUS) => {
-                Ok(Expr::Float(left_num as f64 + right_num))
-            }
-            (Expr::Float(left_num), Expr::Number(right_num), Tokens::PLUS) => {
-                Ok(Expr::Float(left_num + right_num as f64))
-            }
-            (Expr::Float(left_num), Expr::Float(right_num), Tokens::PLUS) => {
-                Ok(Expr::Float(left_num + right_num))
-            }
-            (Expr::Number(left_num), Expr::Number(right_num), Tokens::MINUS) => {
-                Ok(Expr::Number(left_num - right_num))
-            }
-            (Expr::Number(left_num), Expr::Float(right_num), Tokens::MINUS) => {
-                Ok(Expr::Float(left_num as f64 - right_num))
-            }
-            (Expr::Float(left_num), Expr::Number(right_num), Tokens::MINUS) => {
-                Ok(Expr::Float(left_num - right_num as f64))
-            }
-            (Expr::Float(left_num), Expr::Float(right_num), Tokens::MINUS) => {
-                Ok(Expr::Float(left_num - right_num))
-            }
-            (Expr::Number(left_num), Expr::Number(right_num), Tokens::STAR) => {
-                Ok(Expr::Number(left_num * right_num))
-            }
-            (Expr::Number(left_num), Expr::Float(right_num), Tokens::STAR) => {
-                Ok(Expr::Float(left_num as f64 * right_num))
-            }
-            (Expr::Float(left_num), Expr::Number(right_num), Tokens::STAR) => {
-                Ok(Expr::Float(left_num * right_num as f64))
-            }
-            (Expr::Float(left_num), Expr::Float(right_num), Tokens::STAR) => {
-                Ok(Expr::Float(left_num * right_num))
-            }
-            (Expr::Number(left_num), Expr::Number(right_num), Tokens::SLASH) => {
-                if right_num == 0 {
+        match operator {
+            Tokens::PLUS => self.apply_arithmetic_operation(left, right, |a, b| Ok(a + b)),
+            Tokens::MINUS => self.apply_arithmetic_operation(left, right, |a, b| Ok(a - b)),
+            Tokens::STAR => self.apply_arithmetic_operation(left, right, |a, b| Ok(a * b)),
+            Tokens::SLASH => self.apply_arithmetic_operation(left, right, |a, b| {
+                if b == 0.0 {
                     Err("division by zero".to_string())
                 } else {
-                    Ok(Expr::Number(left_num / right_num))
+                    Ok(a / b)
                 }
-            }
-            (Expr::Number(left_num), Expr::Float(right_num), Tokens::SLASH) => {
-                if right_num == 0.0 {
-                    Err("division by zero".to_string())
-                } else {
-                    Ok(Expr::Float(left_num as f64 / right_num))
-                }
-            }
-            (Expr::Float(left_num), Expr::Number(right_num), Tokens::SLASH) => {
-                if right_num == 0 {
-                    Err("division by zero".to_string())
-                } else {
-                    Ok(Expr::Float(left_num / right_num as f64))
-                }
-            }
-            (Expr::Float(left_num), Expr::Float(right_num), Tokens::SLASH) => {
-                if right_num == 0.0 {
-                    Err("division by zero".to_string())
-                } else {
-                    Ok(Expr::Float(left_num / right_num))
-                }
-            }
-            _ => Err("unsupported operator".to_string()),
+            }),
+            Tokens::BANGEQUAL
+            | Tokens::EQUALEQUAL
+            | Tokens::GREATER
+            | Tokens::GREATEREQUAL
+            | Tokens::LESS
+            | Tokens::LESSEQUAL => self.apply_comparison_operation(left, right, operator),
+            _ => Err(format!("unsupported operator {:?}", operator)),
         }
     }
 
-    fn is_truthy(&self, _expr: Expr) -> bool {
-        true
+    fn apply_arithmetic_operation<F>(
+        &mut self,
+        left: &Expr,
+        right: &Expr,
+        operation: F,
+    ) -> Result<Expr, String>
+    where
+        F: Fn(f64, f64) -> Result<f64, String>,
+    {
+        let left_value = self.evaluate(left.clone())?;
+        let right_value = self.evaluate(right.clone())?;
+
+        match (left_value, right_value) {
+            (Expr::Number(left_num), Expr::Number(right_num)) => {
+                operation(left_num as f64, right_num as f64)
+                    .map(|result| Expr::Number(result as i64))
+            }
+            (Expr::Number(left_num), Expr::Float(right_num)) => {
+                operation(left_num as f64, right_num).map(|result| Expr::Number(result as i64))
+            }
+            (Expr::Float(left_num), Expr::Number(right_num)) => {
+                operation(left_num, right_num as f64).map(|result| Expr::Number(result as i64))
+            }
+            (Expr::Float(left_num), Expr::Float(right_num)) => {
+                operation(left_num, right_num).map(|result| Expr::Number(result as i64))
+            }
+            _ => Err("arithmetic operation expects numeric operands".to_string()),
+        }
+    }
+
+    fn apply_comparison_operation(
+        &mut self,
+        left: &Expr,
+        right: &Expr,
+        operator: &Tokens,
+    ) -> Result<Expr, String> {
+        let left_value = self.evaluate(left.clone())?;
+        let right_value = self.evaluate(right.clone())?;
+
+        match (left_value, right_value, operator) {
+            (Expr::Number(left_num), Expr::Number(right_num), Tokens::BANGEQUAL) => {
+                Ok(Expr::Number((left_num != right_num) as i64))
+            }
+            (Expr::Number(left_num), Expr::Number(right_num), Tokens::EQUALEQUAL) => {
+                Ok(Expr::Number((left_num == right_num) as i64))
+            }
+            (Expr::Number(left_num), Expr::Number(right_num), Tokens::GREATER) => {
+                Ok(Expr::Number((left_num > right_num) as i64))
+            }
+            (Expr::Number(left_num), Expr::Number(right_num), Tokens::GREATEREQUAL) => {
+                Ok(Expr::Number((left_num >= right_num) as i64))
+            }
+            (Expr::Number(left_num), Expr::Number(right_num), Tokens::LESS) => {
+                Ok(Expr::Number((left_num < right_num) as i64))
+            }
+            (Expr::Number(left_num), Expr::Number(right_num), Tokens::LESSEQUAL) => {
+                Ok(Expr::Number((left_num <= right_num) as i64))
+            }
+            (Expr::StringLiteral(left_str), Expr::StringLiteral(right_str), Tokens::BANGEQUAL) => {
+                Ok(Expr::Number((left_str != right_str) as i64))
+            }
+            (Expr::StringLiteral(left_str), Expr::StringLiteral(right_str), Tokens::EQUALEQUAL) => {
+                Ok(Expr::Number((left_str == right_str) as i64))
+            }
+            (Expr::StringLiteral(left_str), Expr::StringLiteral(right_str), Tokens::GREATER) => {
+                Ok(Expr::Number((left_str > right_str) as i64))
+            }
+            (
+                Expr::StringLiteral(left_str),
+                Expr::StringLiteral(right_str),
+                Tokens::GREATEREQUAL,
+            ) => Ok(Expr::Number((left_str >= right_str) as i64)),
+            (Expr::StringLiteral(left_str), Expr::StringLiteral(right_str), Tokens::LESS) => {
+                Ok(Expr::Number((left_str < right_str) as i64))
+            }
+            (Expr::StringLiteral(left_str), Expr::StringLiteral(right_str), Tokens::LESSEQUAL) => {
+                Ok(Expr::Number((left_str <= right_str) as i64))
+            }
+            _ => Err("comparison operation expects operands of compatible types".to_string()),
+        }
+    }
+
+    fn is_truthy(&self, expr: Expr) -> bool {
+        match expr {
+            Expr::Nil => false,
+            Expr::Number(num) if num == 0 => false,
+            Expr::Float(num) if num == 0.0 => false,
+            Expr::StringLiteral(s) if s.is_empty() => false,
+            _ => true,
+        }
     }
 }
