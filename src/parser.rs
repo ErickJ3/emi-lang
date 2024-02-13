@@ -1,3 +1,5 @@
+use std::fmt;
+
 use crate::scanner::Tokens;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -48,6 +50,87 @@ pub enum Expr {
     },
     ReturnStmt(Option<Box<Expr>>),
     Nil,
+}
+
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expr::Number(value) => write!(f, "{}", value),
+            Expr::Float(value) => write!(f, "{}", value),
+            Expr::StringLiteral(value) => write!(f, "{}", value),
+            Expr::Variable(name) => write!(f, "{}", name),
+            Expr::UnaryOp { operator, right } => write!(f, "{}{}", operator, right),
+            Expr::BinaryOp {
+                left,
+                operator,
+                right,
+            } => {
+                write!(f, "{} {} {}", left, operator, right)
+            }
+            Expr::Grouping(expr) => write!(f, "({})", expr),
+            Expr::PrintStmt(expr) => write!(f, "print {}", expr),
+            Expr::LetStmt { identifier, value } => {
+                write!(f, "let {} = {}", identifier, value)
+            }
+            Expr::IfStmt {
+                condition,
+                then_branch,
+                else_branch,
+            } => {
+                write!(
+                    f,
+                    "if {} then {} else {}",
+                    condition,
+                    then_branch,
+                    else_branch.as_ref().unwrap_or(&Box::new(Expr::Nil))
+                )
+            }
+            Expr::Block(expressions) => {
+                for expr in expressions {
+                    writeln!(f, "{}", expr)?;
+                }
+                Ok(())
+            }
+            Expr::WhileStmt { condition, body } => {
+                write!(f, "while {} do {}", condition, body)
+            }
+            Expr::ForStmt {
+                initialization,
+                condition,
+                increment,
+                body,
+            } => write!(
+                f,
+                "for {}; {}; {} do {}",
+                initialization, condition, increment, body
+            ),
+            Expr::Function {
+                name,
+                parameters,
+                body,
+            } => write!(f, "fun {}({}) {{ {} }}", name, parameters.join(", "), body),
+            Expr::Call { callee, arguments } => {
+                write!(
+                    f,
+                    "{}({})",
+                    callee,
+                    arguments
+                        .iter()
+                        .map(|arg| arg.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            }
+            Expr::ReturnStmt(expr) => {
+                if let Some(expr) = expr {
+                    write!(f, "return {}", expr)
+                } else {
+                    write!(f, "return")
+                }
+            }
+            Expr::Nil => write!(f, "nil"),
+        }
+    }
 }
 
 pub struct Parser<'a> {
@@ -109,10 +192,7 @@ impl<'a> Parser<'a> {
                     }
                     Some(Expr::Grouping(Box::new(expr)))
                 }
-                _ => {
-                    eprintln!("expected expression. got: {:?}", token);
-                    None
-                }
+                _ => None,
             }
         } else {
             None
@@ -128,6 +208,89 @@ impl<'a> Parser<'a> {
         let value = self.parse_expression()?;
 
         Some(Expr::PrintStmt(Box::new(value)))
+    }
+
+    fn parse_function_declaration(&mut self) -> Option<Expr> {
+        if self.consume(Tokens::FUN).is_none() {
+            self.error("expected 'fun' keyword for function declaration.");
+            return None;
+        }
+
+        let name = match self.peek() {
+            Some(&Tokens::IDENTIFIER(ref name)) => name.clone(),
+            _ => {
+                self.error("expected function name after 'fun' keyword.");
+                return None;
+            }
+        };
+
+        self.advance();
+
+        if self.consume(Tokens::LEFTPAREN).is_none() {
+            self.error("expected '(' after function name.");
+            return None;
+        }
+
+        let mut parameters = Vec::new();
+        while let Some(&Tokens::IDENTIFIER(ref param)) = self.peek() {
+            parameters.push(param.clone());
+            self.advance();
+            if self.peek() != Some(&Tokens::COMMA) {
+                break;
+            }
+            self.advance();
+        }
+
+        if self.consume(Tokens::RIGHTPAREN).is_none() {
+            self.error("expected ')' after function parameters.");
+            return None;
+        }
+
+        if self.consume(Tokens::COLON).is_none() {
+            self.error("expected ':' after function parameters.");
+            return None;
+        }
+
+        let body = match self.parse() {
+            Some(Expr::Block(body)) => body,
+            Some(expr) => vec![expr],
+            None => {
+                self.error("expected function body.");
+                return None;
+            }
+        };
+
+        Some(Expr::Function {
+            name,
+            parameters,
+            body: Box::new(Expr::Block(body)),
+        })
+    }
+
+    fn parse_call_expression(&mut self, callee: Expr) -> Option<Expr> {
+        if self.consume(Tokens::LEFTPAREN).is_none() {
+            self.error("expected '(' after function name.");
+            return None;
+        }
+
+        let mut arguments = Vec::new();
+        while let Some(expr) = self.parse_expression() {
+            arguments.push(expr);
+            if self.peek() != Some(&Tokens::COMMA) {
+                break;
+            }
+            self.advance();
+        }
+
+        if self.consume(Tokens::RIGHTPAREN).is_none() {
+            self.error("expected ')' after function arguments.");
+            return None;
+        }
+
+        Some(Expr::Call {
+            callee: Box::new(callee),
+            arguments,
+        })
     }
 
     fn parse_let_statement(&mut self) -> Option<Expr> {
@@ -207,7 +370,14 @@ impl<'a> Parser<'a> {
         }
 
         if let Some(&Tokens::FUN) = self.peek() {
-            println!()
+            return self.parse_function_declaration();
+        }
+
+        if let Some(&Tokens::IDENTIFIER(_)) = self.peek() {
+            if self.tokens.get(self.current + 1) == Some(&Tokens::LEFTPAREN) {
+                let callee_expr = self.parse_primary()?;
+                return self.parse_call_expression(callee_expr);
+            }
         }
 
         self.parse_binary_expression()

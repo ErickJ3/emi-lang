@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum Tokens {
     FUN,
@@ -38,6 +40,51 @@ pub enum Tokens {
     TRUE,
     WHILE,
     EOF,
+}
+
+impl fmt::Display for Tokens {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Tokens::FUN => write!(f, "FUN"),
+            Tokens::IDENTIFIER(name) => write!(f, "{}", name),
+            Tokens::COLON => write!(f, ":"),
+            Tokens::COMMA => write!(f, ","),
+            Tokens::DOT => write!(f, "."),
+            Tokens::LEFTPAREN => write!(f, "("),
+            Tokens::RIGHTPAREN => write!(f, ")"),
+            Tokens::STRINGLITERAL(value) => write!(f, "\"{}\"", value),
+            Tokens::PRINT => write!(f, "PRINT"),
+            Tokens::END => write!(f, "END"),
+            Tokens::LET => write!(f, "LET"),
+            Tokens::LEFTBRACK => write!(f, "["),
+            Tokens::RIGHTBRACK => write!(f, "]"),
+            Tokens::INTLITERAL(value) => write!(f, "{}", value),
+            Tokens::FLOATLITERAL(value) => write!(f, "{}", value),
+            Tokens::BANG => write!(f, "!"),
+            Tokens::BANGEQUAL => write!(f, "!="),
+            Tokens::ASSIGNMENT => write!(f, "="),
+            Tokens::EQUALEQUAL => write!(f, "=="),
+            Tokens::GREATER => write!(f, ">"),
+            Tokens::GREATEREQUAL => write!(f, ">="),
+            Tokens::LESS => write!(f, "<"),
+            Tokens::LESSEQUAL => write!(f, "<="),
+            Tokens::MINUS => write!(f, "-"),
+            Tokens::PLUS => write!(f, "+"),
+            Tokens::SLASH => write!(f, "/"),
+            Tokens::STAR => write!(f, "*"),
+            Tokens::AND => write!(f, "AND"),
+            Tokens::ELSE => write!(f, "ELSE"),
+            Tokens::FALSE => write!(f, "FALSE"),
+            Tokens::FOR => write!(f, "FOR"),
+            Tokens::IF => write!(f, "IF"),
+            Tokens::NIL => write!(f, "NIL"),
+            Tokens::OR => write!(f, "OR"),
+            Tokens::RETURN => write!(f, "RETURN"),
+            Tokens::TRUE => write!(f, "TRUE"),
+            Tokens::WHILE => write!(f, "WHILE"),
+            Tokens::EOF => write!(f, "EOF"),
+        }
+    }
 }
 
 #[derive(Debug)]
