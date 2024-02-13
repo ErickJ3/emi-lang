@@ -1,0 +1,15 @@
+fun main(a, s):
+    print a + s
+end
+
+main(5, 5)
+
+let name = "erick"
+
+print name
+
+main(10, 20)
+
+name = "hello_world"
+
+print name
