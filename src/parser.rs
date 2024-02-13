@@ -390,30 +390,32 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> Option<Expr> {
-        if let Some(&Tokens::EOF) = self.peek() {
-            return None;
-        }
-
-        if let Some(&Tokens::PRINT) = self.peek() {
-            return self.parse_print_statement();
-        }
-
-        if let Some(&Tokens::LET) = self.peek() {
-            return self.parse_let_statement();
-        }
-
-        if let Some(&Tokens::FUN) = self.peek() {
-            return self.parse_function_declaration();
-        }
-
-        if let Some(&Tokens::IDENTIFIER(_)) = self.peek() {
-            if self.tokens.get(self.current + 1) == Some(&Tokens::LEFTPAREN) {
+        match self.peek() {
+            Some(&Tokens::EOF) => None,
+            Some(&Tokens::PRINT) => self.parse_print_statement(),
+            Some(&Tokens::LET) => self.parse_let_statement(),
+            Some(&Tokens::FUN) => self.parse_function_declaration(),
+            Some(&Tokens::IDENTIFIER(_))
+                if self.tokens.get(self.current + 1) == Some(&Tokens::LEFTPAREN) =>
+            {
                 let callee_expr = self.parse_primary()?;
-                return self.parse_call_expression(callee_expr);
+                self.parse_call_expression(callee_expr)
             }
+            Some(&Tokens::MINUS) => {
+                self.advance();
+                let expr = self.parse_expression()?;
+                Some(Expr::UnaryOp {
+                    operator: Tokens::MINUS,
+                    right: Box::new(expr),
+                })
+            }
+            Some(&Tokens::PLUS) => {
+                self.advance();
+                let expr = self.parse_expression()?;
+                Some(expr)
+            }
+            _ => self.parse_binary_expression(),
         }
-
-        self.parse_binary_expression()
     }
 
     pub fn parse(&mut self) -> Option<Expr> {
