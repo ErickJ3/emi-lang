@@ -68,6 +68,15 @@ impl Interpreter {
                 self.variables.insert(identifier.clone(), value.clone());
                 Ok(Expr::Nil)
             }
+            Expr::SwapStmt { identifier, value } => {
+                let value = self.interpret(*value)?;
+                if let Some(variable_expr) = self.variables.get_mut(&identifier) {
+                    *variable_expr = value.clone();
+                    Ok(Expr::Nil)
+                } else {
+                    Err(format!("variable '{}' not declared", identifier))
+                }
+            }
             Expr::Function {
                 name,
                 parameters,
@@ -143,7 +152,6 @@ impl Interpreter {
                 }
             }
             Expr::PrintStmt(expr) => self.interpret(*expr),
-
             _ => Err("unsupported expression".to_string()),
         }
     }

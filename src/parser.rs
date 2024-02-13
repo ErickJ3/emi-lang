@@ -23,6 +23,10 @@ pub enum Expr {
         identifier: String,
         value: Box<Expr>,
     },
+    SwapStmt {
+        identifier: String,
+        value: Box<Expr>,
+    },
     IfStmt {
         condition: Box<Expr>,
         then_branch: Box<Expr>,
@@ -71,6 +75,9 @@ impl fmt::Display for Expr {
             Expr::PrintStmt(expr) => write!(f, "print {}", expr),
             Expr::LetStmt { identifier, value } => {
                 write!(f, "let {} = {}", identifier, value)
+            }
+            Expr::SwapStmt { identifier, value } => {
+                write!(f, "{} = {}", identifier, value)
             }
             Expr::IfStmt {
                 condition,
@@ -183,7 +190,10 @@ impl<'a> Parser<'a> {
                 Tokens::INTLITERAL(value) => Some(Expr::Number(*value)),
                 Tokens::FLOATLITERAL(value) => Some(Expr::Float(*value)),
                 Tokens::STRINGLITERAL(value) => Some(Expr::StringLiteral(value.clone())),
-                Tokens::IDENTIFIER(name) => Some(Expr::Variable(name.clone())),
+                Tokens::IDENTIFIER(name) => {
+                    let name_cl = name.clone();
+                    self.parse_identifier(&name_cl)
+                }
                 Tokens::LEFTPAREN => {
                     let expr = self.parse_expression()?;
                     if self.consume(Tokens::RIGHTPAREN).is_none() {
@@ -196,6 +206,19 @@ impl<'a> Parser<'a> {
             }
         } else {
             None
+        }
+    }
+
+    fn parse_identifier(&mut self, name: &str) -> Option<Expr> {
+        if let Some(&Tokens::ASSIGNMENT) = self.peek() {
+            self.advance();
+            let value = self.parse_expression()?;
+            Some(Expr::SwapStmt {
+                identifier: name.to_owned(),
+                value: Box::new(value),
+            })
+        } else {
+            Some(Expr::Variable(name.to_owned()))
         }
     }
 
@@ -274,8 +297,18 @@ impl<'a> Parser<'a> {
         }
 
         let mut arguments = Vec::new();
-        while let Some(expr) = self.parse_expression() {
-            arguments.push(expr);
+        loop {
+            if let Some(&Tokens::RIGHTPAREN) = self.peek() {
+                break;
+            }
+
+            if let Some(expr) = self.parse_expression() {
+                arguments.push(expr);
+            } else {
+                self.error("expected expression inside function call.");
+                return None;
+            }
+
             if self.peek() != Some(&Tokens::COMMA) {
                 break;
             }
