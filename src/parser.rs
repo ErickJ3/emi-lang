@@ -233,7 +233,7 @@ impl<'a> Parser<'a> {
         Some(Expr::PrintStmt(Box::new(value)))
     }
 
-    fn parse_function_declaration(&mut self) -> Option<Expr> {
+    fn parse_function(&mut self) -> Option<Expr> {
         if self.consume(Tokens::FUN).is_none() {
             self.error("expected 'fun' keyword for function declaration.");
             return None;
@@ -357,6 +357,49 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_if_statement(&mut self) -> Option<Expr> {
+        self.consume(Tokens::IF)?;
+
+        let condition = self.parse_expression()?;
+
+        if self.consume(Tokens::COLON).is_none() {
+            self.error("expected ':' after condition in if statement.");
+            return None;
+        }
+
+        let then_branch = self.parse_expression()?;
+
+        let else_branch = if let Some(&Tokens::ELSE) = self.peek() {
+            self.advance();
+            if self.consume(Tokens::COLON).is_none() {
+                self.error("expected ':' after 'else'.");
+                return None;
+            }
+            let mut else_block = Vec::new();
+            while let Some(token) = self.peek() {
+                match token {
+                    Tokens::END => {
+                        self.advance();
+                        break;
+                    }
+                    _ => {
+                        let expr = self.parse_expression()?;
+                        else_block.push(expr);
+                    }
+                }
+            }
+            Some(Expr::Block(else_block))
+        } else {
+            None
+        };
+
+        Some(Expr::IfStmt {
+            condition: Box::new(condition),
+            then_branch: Box::new(then_branch),
+            else_branch: else_branch.map(Box::new),
+        })
+    }
+
     fn parse_binary_expression(&mut self) -> Option<Expr> {
         let mut left = self.parse_primary()?;
 
@@ -390,30 +433,33 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> Option<Expr> {
-        if let Some(&Tokens::EOF) = self.peek() {
-            return None;
-        }
-
-        if let Some(&Tokens::PRINT) = self.peek() {
-            return self.parse_print_statement();
-        }
-
-        if let Some(&Tokens::LET) = self.peek() {
-            return self.parse_let_statement();
-        }
-
-        if let Some(&Tokens::FUN) = self.peek() {
-            return self.parse_function_declaration();
-        }
-
-        if let Some(&Tokens::IDENTIFIER(_)) = self.peek() {
-            if self.tokens.get(self.current + 1) == Some(&Tokens::LEFTPAREN) {
+        match self.peek() {
+            Some(&Tokens::EOF) => None,
+            Some(&Tokens::PRINT) => self.parse_print_statement(),
+            Some(&Tokens::LET) => self.parse_let_statement(),
+            Some(&Tokens::FUN) => self.parse_function(),
+            Some(&Tokens::IF) => self.parse_if_statement(),
+            Some(&Tokens::IDENTIFIER(_))
+                if self.tokens.get(self.current + 1) == Some(&Tokens::LEFTPAREN) =>
+            {
                 let callee_expr = self.parse_primary()?;
-                return self.parse_call_expression(callee_expr);
+                self.parse_call_expression(callee_expr)
             }
+            Some(&Tokens::MINUS) => {
+                self.advance();
+                let expr = self.parse_expression()?;
+                Some(Expr::UnaryOp {
+                    operator: Tokens::MINUS,
+                    right: Box::new(expr),
+                })
+            }
+            Some(&Tokens::PLUS) => {
+                self.advance();
+                let expr = self.parse_expression()?;
+                Some(expr)
+            }
+            _ => self.parse_binary_expression(),
         }
-
-        self.parse_binary_expression()
     }
 
     pub fn parse(&mut self) -> Option<Expr> {
