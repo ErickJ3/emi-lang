@@ -6,6 +6,8 @@ mod interpreter;
 mod parser;
 mod scanner;
 
+use parser::Expr;
+
 use crate::interpreter::Interpreter;
 use crate::parser::Parser;
 use crate::scanner::Scanner;
@@ -31,12 +33,8 @@ fn run_file(file_path: &str) -> io::Result<()> {
 
     file.read_to_string(&mut str_content)?;
 
-    println!("code: {:?}", &str_content);
-
     let mut scanner = Scanner::new(&str_content);
     let tokens = scanner.scanning();
-
-    println!("tokens: {:#?}", tokens);
 
     let mut parser = Parser::new(&tokens);
 
@@ -44,12 +42,30 @@ fn run_file(file_path: &str) -> io::Result<()> {
 
     let expr = parser.parse().unwrap();
 
-    println!("{:#?}", expr);
+    let eval = interpreter.evaluate(expr).unwrap();
 
+    let mut expressions_to_print = Vec::new();
+    collect_printable_exprs(eval, &mut expressions_to_print).unwrap();
 
-    let eval = interpreter.evaluate(expr);
+    for expr in expressions_to_print {
+        println!("{}", expr);
+    }
 
-    println!("{:?}", eval);
+    Ok(())
+}
+
+fn collect_printable_exprs(expr: Expr, expressions: &mut Vec<Expr>) -> Result<(), String> {
+    match expr {
+        Expr::Number(_) | Expr::Float(_) | Expr::StringLiteral(_) => {
+            expressions.push(expr);
+        }
+        Expr::Block(expressions_in_block) => {
+            for expr_in_block in expressions_in_block {
+                collect_printable_exprs(expr_in_block, expressions)?;
+            }
+        }
+        _ => {}
+    }
     Ok(())
 }
 

@@ -1,13 +1,27 @@
 use crate::{parser::Expr, scanner::Tokens};
+use std::collections::HashMap;
+
+#[derive(Clone, Debug)]
+pub enum Value {
+    Function(Vec<String>, Box<Expr>),
+}
+
+impl Value {
+    pub fn function(parameters: Vec<String>, body: Box<Expr>) -> Self {
+        Value::Function(parameters, body)
+    }
+}
 
 pub struct Interpreter {
-    variables: std::collections::HashMap<String, Expr>,
+    variables: HashMap<String, Expr>,
+    functions: HashMap<String, Value>,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Interpreter {
-            variables: std::collections::HashMap::new(),
+            variables: HashMap::new(),
+            functions: HashMap::new(),
         }
     }
 
@@ -17,10 +31,12 @@ impl Interpreter {
             Expr::Float(value) => Ok(Expr::Float(value)),
             Expr::StringLiteral(value) => Ok(Expr::StringLiteral(value)),
             Expr::Variable(name) => {
-                if let Some(function_expr) = self.get_function_value(&name) {
-                    Ok(function_expr.clone())
+                if let Some(variable_expr) = self.get_variable_value(&name) {
+                    Ok(variable_expr.clone())
+                } else if self.get_function_value(&name).is_some() {
+                    Ok(Expr::Variable(name))
                 } else {
-                    Err(format!("variable '{}' not declared", name))
+                    Err(format!("variable or function '{}' not declared", name))
                 }
             }
             Expr::Block(expressions) => {
@@ -41,9 +57,11 @@ impl Interpreter {
             }
             Expr::LetStmt { identifier, value } => {
                 let identifier_fun = identifier.clone();
-
                 if self.variables.contains_key(&identifier_fun) {
-                    return Err(format!("variable '{}' has already been declared", identifier_fun));
+                    return Err(format!(
+                        "variable '{}' has already been declared",
+                        identifier_fun
+                    ));
                 }
 
                 let value = self.interpret(*value)?;
@@ -55,9 +73,50 @@ impl Interpreter {
                 parameters,
                 body,
             } => {
-                println!("{}, {:?}, {:?}", name, parameters, body);
+                if self.functions.contains_key(&name) {
+                    return Err(format!("fun '{}' has already been declared", name));
+                }
 
+                let function_value = Value::function(parameters.clone(), Box::new(*body.clone()));
+                self.functions.insert(name.clone(), function_value);
                 Ok(Expr::Nil)
+            }
+            Expr::Call { callee, arguments } => {
+                let callee_expr = self.interpret(*callee)?;
+                match callee_expr {
+                    Expr::Variable(name) => {
+                        let function_value = match self.get_function_value(&name) {
+                            Some(value) => value,
+                            None => return Err(format!("undefined function '{}'", name)),
+                        };
+
+                        let (parameters, body) = match function_value {
+                            Value::Function(params, b) => (params, b),
+                        };
+
+                        if arguments.len() != parameters.len() {
+                            return Err(format!(
+                                "wrong number of arguments for function '{}'",
+                                name
+                            ));
+                        }
+
+                        let mut new_scope = self.variables.clone();
+                        for (param, arg) in parameters.iter().zip(arguments) {
+                            new_scope.insert(param.clone(), arg.clone());
+                        }
+
+                        let mut interpreter = Interpreter {
+                            variables: new_scope,
+                            functions: self.functions.clone(),
+                        };
+
+                        let result = interpreter.interpret(*body.clone())?;
+
+                        Ok(result)
+                    }
+                    _ => Err("only variables can be called as functions".to_string()),
+                }
             }
             Expr::BinaryOp {
                 left,
@@ -84,6 +143,7 @@ impl Interpreter {
                 }
             }
             Expr::PrintStmt(expr) => self.interpret(*expr),
+
             _ => Err("unsupported expression".to_string()),
         }
     }
@@ -92,8 +152,12 @@ impl Interpreter {
         self.interpret(expr)
     }
 
-    pub fn get_function_value(&self, name: &str) -> Option<&Expr> {
+    fn get_variable_value(&self, name: &str) -> Option<&Expr> {
         self.variables.get(name)
+    }
+
+    pub fn get_function_value(&self, name: &str) -> Option<&Value> {
+        self.functions.get(name)
     }
 
     fn apply_unary_minus(&self, expr: Expr) -> Result<Expr, String> {
