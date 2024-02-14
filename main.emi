@@ -19,3 +19,11 @@ if "erick" == name:
 else:
     print "not equal"
 end
+
+let number_to_compare = 0
+
+while number_to_compare < 100:
+    number_to_compare = number_to_compare + 1
+
+    print number_to_compare
+end

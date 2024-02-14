@@ -432,12 +432,46 @@ impl<'a> Parser<'a> {
         Some(left)
     }
 
+    fn parse_while_statement(&mut self) -> Option<Expr> {
+        if self.consume(Tokens::WHILE).is_none() {
+            self.error("expected 'while' keyword for loop declaration.");
+            return None;
+        }
+
+        let condition = self.parse_binary_expression()?;
+
+        if self.consume(Tokens::COLON).is_none() {
+            self.error("expected ':' after condition in while statement.");
+            return None;
+        }
+
+        let mut body = vec![];
+        while let Some(expr) = self.parse_expression() {
+            body.push(expr);
+        }
+
+        Some(Expr::WhileStmt {
+            condition: Box::new(condition),
+            body: Box::new(Expr::Block(body)),
+        })
+    }
+
+    fn parse_return_statement(&mut self) -> Option<Expr> {
+        self.consume(Tokens::RETURN);
+
+        let expr = self.parse_expression()?;
+
+        Some(Expr::ReturnStmt(Some(Box::new(expr))))
+    }
+
     fn parse_expression(&mut self) -> Option<Expr> {
         match self.peek() {
             Some(&Tokens::EOF) => None,
             Some(&Tokens::PRINT) => self.parse_print_statement(),
+            Some(&Tokens::RETURN) => self.parse_return_statement(),
             Some(&Tokens::LET) => self.parse_let_statement(),
             Some(&Tokens::FUN) => self.parse_function(),
+            Some(&Tokens::WHILE) => self.parse_while_statement(),
             Some(&Tokens::IF) => self.parse_if_statement(),
             Some(&Tokens::IDENTIFIER(_))
                 if self.tokens.get(self.current + 1) == Some(&Tokens::LEFTPAREN) =>
