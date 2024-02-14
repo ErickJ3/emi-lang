@@ -42,9 +42,14 @@ impl Interpreter {
             Expr::Block(expressions) => {
                 let mut results = Vec::new();
                 for expr in expressions {
-                    results.push(self.interpret(expr)?);
+                    let result = self.interpret(expr)?;
+                    results.push(result);
                 }
-                Ok(Expr::Block(results))
+                if results.len() == 1 {
+                    Ok(results.remove(0))
+                } else {
+                    Ok(Expr::Block(results))
+                }
             }
             Expr::Grouping(expr) => self.interpret(*expr),
             Expr::UnaryOp { operator, right } => {
@@ -186,7 +191,33 @@ impl Interpreter {
                     Ok(Expr::Nil)
                 }
             }
+            Expr::WhileStmt { condition, body } => {
+                let mut result = Expr::Nil;
+
+                let condition_clone = condition.clone();
+                let body_clone = body.clone();
+
+                let mut condition_value = self.evaluate(*condition_clone)?;
+
+                while self.is_truthy(condition_value.clone()) {
+                    result = self.interpret(*body_clone.clone())?;
+                    condition_value = self.evaluate(*condition.clone())?;
+
+                    if let Expr::ReturnStmt(_) = result {
+                        break;
+                    }
+                }
+
+                Ok(result)
+            }
             Expr::PrintStmt(expr) => self.interpret(*expr),
+            Expr::ReturnStmt(value) => match value {
+                Some(expr) => {
+                    let result = self.evaluate(*expr)?;
+                    Ok(result)
+                }
+                None => Ok(Expr::Nil),
+            },
             _ => Err(format!("unsupported expression: {}", expr)),
         }
     }
@@ -254,7 +285,7 @@ impl Interpreter {
         let left_value = self.evaluate(left.clone())?;
         let right_value = self.evaluate(right.clone())?;
 
-        match (left_value, right_value) {
+        match (left_value.clone(), right_value.clone()) {
             (Expr::Number(left_num), Expr::Number(right_num)) => {
                 operation(left_num as f64, right_num as f64)
                     .map(|result| Expr::Number(result as i64))
@@ -268,7 +299,10 @@ impl Interpreter {
             (Expr::Float(left_num), Expr::Float(right_num)) => {
                 operation(left_num, right_num).map(|result| Expr::Number(result as i64))
             }
-            _ => Err("arithmetic operation expects numeric operands".to_string()),
+            _ => Err(format!(
+                "arithmetic operation expects numeric operands, left: {:?}, right: {:?}!",
+                left_value, right_value
+            )),
         }
     }
 
